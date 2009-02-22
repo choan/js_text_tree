@@ -1,0 +1,62 @@
+# TextTree
+
+TextTree is a simple JavaScript library designed to simplify generation of tree-like structures taking strings as input.
+
+Node nesting is expressed by indentation (only spaces, no tabs allowed) of lines. Lines are converted to child nodes of previous line which is indented at lower level.
+
+## Example usage
+
+Use `TextTree.parseInput` to create the tree from a string:
+
+    var tree = TextTree.parseInput('a\n  b\n    c\nd\n  e');
+    // returns a string representation of the tree, which,
+    // in this case, should be **identical** to the given input
+    tree.dump();
+
+Yeah, that's not very useful. But you can pass a transformer option as a second argument, which will be used to create node-like objects according to your necessities.
+
+The transformes callback **must** accept three arguments: text, tabs and line number. Its return value must be `null` or a node-like object able to handle, at least, the `dump` and `dumpChildren` methods. Of course, you can inherit from `TextTree.Node` if needed/wanted. If `null` is returned, the line is not pushed to the tree.
+
+    var F = function() {};
+    F.prototype = TextTree.Node.prototype;
+    var MyNodeType = function() {
+      TextTree.Node.apply(this, arguments);
+    };
+    MyNodeType.prototype = new F();
+    MyNodeType.prototype.dump = function(opts) {
+      return this.text + ' { indent: ' + this.tabs + ', lineNumber: ' + this.lineNumber + ' }\n' + this.dumpChildren(opts);
+    };
+    var tree = TextTree.parseInput('a\n  b\nc\n  # a comment\n  d', function(text, tabs, line) {
+      if ('#' == text.charAt(0)) return null;
+      return new MyNodeType(text, tabs, line);
+    });
+    tree.dump();
+
+Output from the previous script:
+
+    a { indent: 0, lineNumber: 1 }
+    b { indent: 1, lineNumber: 2 }
+    c { indent: 0, lineNumber: 3 }
+    d { indent: 1, lineNumber: 5 }
+
+Still not very useful. But, hey, you can create useful node types. You can use a transformer callback that uses one or another node type based on patterns of the input text. Heard about Sass? Haml? Cucumber? You may use TextTree as a base library to parse any text format that relies on indentation to express parent-children relationship.
+
+
+## QOWA (Questions Oscar will ask)
+
+### How much indentation?
+
+You can use any number of spaces as the base indentation. Once a line in the input appears indented, the number of spaces at its start will be taken as the indentation unit. Incorrect indents will throw exceptions. TextTree is not mindundi friendly.
+
+### Building
+
+Run `rake dist` to build the full script (on "dist/text_tree.js").
+
+
+## Project website
+
+Please don't visit <http://texttree.scriptia.net> for more information. It doesn't exists yet.
+
+## Author, license, source code
+
+TextTree has been created by <a href="http://choangalvez.nom.es/" hreflang="es">Choan Gálvez</a> and is freely distributable under the terms of a MIT-style license. The source code resides in a <a href="http://github.com/choan/js_text_tree/">Git repository at github</a>.

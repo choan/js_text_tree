@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <title>JavaScript unit test file</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <script src="../assets/jsunittest.js" type="text/javascript"></script>
+  
+  <script src="../assets/jshoulda.js" type="text/javascript"></script>
+  
+  <script src="../../src/text_tree.js?1" type="text/javascript"></script>
+  
+  <link rel="stylesheet" href="../assets/unittest.css" type="text/css" />
+</head>
+<body>
+
+<div id="content">
+
+  <div id="header">
+    <h1>JavaScript unit test file</h1>
+    <p>
+      This file tests <strong>text_tree.js</strong>.
+    </p>
+  </div>
+
+  <!-- Log output (one per Runner, via {testLog: "testlog"} option)-->
+  <div id="testlog"></div>
+  
+  <!-- Put sample/test html here -->
+  <div id="sample"></div>
+</div>
+
+<script type="text/javascript">
+// <![CDATA[
+
+jShoulda
+  .setShouldAlias('it', '')
+  .setContextAlias('describe', '')
+  .unifyRunners();
+
+describe("TextTree:",
+  it("handles children", function() {
+    var tree = TextTree.parseInput('a\n  b');
+    this.assertEqual('a', tree.root.children[0].text);
+    this.assertEqual(1, tree.root.children.length);
+    this.assertEqual('b', tree.root.children[0].children[0].text);
+    this.assertEqual('a', tree.root.children[0].children[0].parent.text);
+  }),
+  it("accepts custom transformers", function() {
+    var tree = TextTree.parseInput('a\n  b', function(text, tabs, line) {
+      return new TextTree.Node(text == 'a' ? 'x' : 'y', tabs, line);
+    });
+    this.assertEqual('x', tree.root.children[0].text);
+    this.assertEqual(1, tree.root.children.length);
+    this.assertEqual('y', tree.root.children[0].children[0].text);
+    this.assertEqual('x', tree.root.children[0].children[0].parent.text);    
+  }),
+  it("accepts correctly tabbed input", function() {
+    var tree = TextTree.parseInput('a\n  b\n    c');
+    this.assertEqual('a', tree.root.children[0].text);
+    this.assertEqual(1, tree.root.children.length);
+    this.assertEqual('b', tree.root.children[0].children[0].text);
+    this.assertEqual('a', tree.root.children[0].children[0].parent.text);
+    this.assertEqual('c', tree.root.children[0].children[0].children[0].text);
+  }),
+  it("does not accept incorrectly tabbed input", function() {
+    this.assertRaise('SyntaxError', function() {
+      var tree = TextTree.parseInput('a\n  b\n   c');
+    });
+  }),
+  it("dumps correctly", function() {
+    var tree = TextTree.parseInput('a\n   b\nc\n   d'); // three spaces indent
+    this.assertEqual('a\n  b\nc\n  d\n', tree.dump());
+  })
+)();
+
+describe("A customized tree", {
+  setup: function() {
+    var F = function() {};
+    F.prototype = TextTree.Node.prototype;
+    var MyNodeType = function() {
+      TextTree.Node.apply(this, arguments);
+    };
+    MyNodeType.prototype = new F();
+    MyNodeType.prototype.dump = function(opts) {
+      return this.text + ' { indent: ' + this.tabs + ', lineNumber: ' + this.lineNumber + '}\n' + this.dumpChildren(opts);
+    };
+    this.MyNodeType = MyNodeType;
+  }
+  },
+  it("run tests", function() {
+    var MyNodeType = this.MyNodeType;
+    var tree = TextTree.parseInput('a\n  b\nc\n  # a comment\n  d', function(text, tabs, line) {
+      if (text.charAt(0) == '#') return null;
+      return new MyNodeType(text, tabs, line);
+    });
+    this.assertEqual('a { indent: 0, lineNumber: 1}\nb { indent: 1, lineNumber: 2}\nc { indent: 0, lineNumber: 3}\nd { indent: 1, lineNumber: 5}\n', tree.dump());
+  })
+)();
+
+
+// ]]>
+</script>
+</body>
+</html>
