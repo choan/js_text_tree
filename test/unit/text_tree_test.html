@@ -40,61 +40,111 @@ jShoulda
 
 describe("TextTree:",
   it("handles children", function() {
-    var tree = TextTree.parseInput('a\n  b');
-    this.assertEqual('a', tree.root.children[0].text);
-    this.assertEqual(1, tree.root.children.length);
-    this.assertEqual('b', tree.root.children[0].children[0].text);
-    this.assertEqual('a', tree.root.children[0].children[0].parent.text);
+    var tree = TextTree.parse('a\n  b');
+    this.assertEqual('a', tree.child(0).text);
+    this.assertEqual(1, tree.size());
+    this.assertEqual('b', tree.child(0).child(0).text);
+    this.assertEqual('a', tree.child(0).child(0).parent.text);
   }),
   it("accepts custom transformers", function() {
-    var tree = TextTree.parseInput('a\n  b', function(text, tabs, line) {
+    var tree = TextTree.parse('a\n  b', function(text, tabs, line) {
       return new TextTree.Node(text == 'a' ? 'x' : 'y', tabs, line);
     });
-    this.assertEqual('x', tree.root.children[0].text);
-    this.assertEqual(1, tree.root.children.length);
-    this.assertEqual('y', tree.root.children[0].children[0].text);
-    this.assertEqual('x', tree.root.children[0].children[0].parent.text);    
+    this.assertEqual('x', tree.child(0).text);
+    this.assertEqual(1, tree.size());
+    this.assertEqual('y', tree.child(0).child(0).text);
+    this.assertEqual('x', tree.child(0).child(0).parent.text);    
   }),
   it("accepts correctly tabbed input", function() {
-    var tree = TextTree.parseInput('a\n  b\n    c');
-    this.assertEqual('a', tree.root.children[0].text);
-    this.assertEqual(1, tree.root.children.length);
-    this.assertEqual('b', tree.root.children[0].children[0].text);
-    this.assertEqual('a', tree.root.children[0].children[0].parent.text);
-    this.assertEqual('c', tree.root.children[0].children[0].children[0].text);
+    var tree = TextTree.parse('a\n  b\n    c');
+    this.assertEqual('a', tree.child(0).text);
+    this.assertEqual('b', tree.child(0).child(0).text);
+    this.assertEqual('a', tree.child(0).child(0).parent.text);
+    this.assertEqual('c', tree.child(0).child(0).child(0).text);
   }),
   it("does not accept incorrectly tabbed input", function() {
     this.assertRaise('SyntaxError', function() {
-      var tree = TextTree.parseInput('a\n  b\n   c');
+      var tree = TextTree.parse('a\n  b\n   c');
     });
   }),
   it("dumps correctly", function() {
-    var tree = TextTree.parseInput('a\n   b\nc\n   d'); // three spaces indent
-    this.assertEqual('a\n  b\nc\n  d\n', tree.dump());
+    var tree = TextTree.parse('a\n   b\nc\n   d'); // three spaces indent
+    this.assertEqual('a\n  b\nc\n  d\n', tree.toString());
+  }),
+  it("can be ordered walked", function() {
+    var tree = TextTree.parse('a\n  b\nc\n  d\n    e');
+    var acum = { result : '' };
+    var res = '';
+    var dump = function(node, arg) {
+      var c = '';
+      node.eachChild(function(node, arg) {
+        c += dump(node, arg);
+      })
+      return '' + node.tabs + node.text + '\n' + c;// + node.eachChild(dump);
+      // return res;
+    };
+    tree.eachChild(function(node, arg) {
+      res += dump(node, arg)
+    });
+    this.assertEqual('0a\n1b\n0c\n1d\n2e\n', res);
+  }),
+  it("can be walked in order with opening and closing handlers", function() {
+    var tree = TextTree.parse('a\n  b\nc\n  d\n    e');
+    var acum = '';
+    var res = '';
+    tree.eachChild(function(node, arg) {
+      res += '(' + node.text;
+    }, function() {
+      res += ')'
+    }, true);
+    this.assertEqual('(a(b))(c(d(e)))', res, 'Should be equal');
   })
 )();
 
 describe("A customized tree", {
   setup: function() {
+  }
+  },
+  it("handles external recursive toString", function() {
     var F = function() {};
     F.prototype = TextTree.Node.prototype;
     var MyNodeType = function() {
       TextTree.Node.apply(this, arguments);
     };
     MyNodeType.prototype = new F();
-    MyNodeType.prototype.dump = function(opts) {
-      return this.text + ' { indent: ' + this.tabs + ', lineNumber: ' + this.lineNumber + '}\n' + this.dumpChildren(opts);
+    MyNodeType.prototype.toString = function(opts) {
+      return this.text + ' { indent: ' + this.tabs + ', lineNumber: ' + this.lineNumber + ' }\n';
     };
-    this.MyNodeType = MyNodeType;
-  }
-  },
-  it("run tests", function() {
-    var MyNodeType = this.MyNodeType;
-    var tree = TextTree.parseInput('a\n  b\nc\n  # a comment\n  d', function(text, tabs, line) {
-      if (text.charAt(0) == '#') return null;
+    var tree = TextTree.parse('a\n  b\nc\n  # a comment\n  d', function(text, tabs, line) {
+      if (text.charAt(0) == '#') return null; // skip comments
+      return new MyNodeType(text, tabs, line); // custom node type
+    });
+    var result = '';
+    tree.eachChild(function(node) {
+      result += node.toString(node);
+    }, null, true);
+    this.assertEqual('a { indent: 0, lineNumber: 1 }\nb { indent: 1, lineNumber: 2 }\nc { indent: 0, lineNumber: 3 }\nd { indent: 1, lineNumber: 5 }\n', result);
+  }),
+  it("handles recursive toString", function() {
+    var F = function() {};
+    F.prototype = TextTree.Node.prototype;
+    var MyNodeType = function() {
+      TextTree.Node.apply(this, arguments);
+    };
+    MyNodeType.prototype = new F();
+    MyNodeType.prototype.toString = function() {
+      var res = this.text + ' { indent: ' + this.tabs + ', lineNumber: ' + this.lineNumber + ' }\n';
+      this.eachChild(function(node) {
+        res += node.toString();
+      });
+      return res;
+    };
+    var tree = TextTree.parse('a\n  b\nc\n  # a comment\n  d', function(text, tabs, line) {
+      if ('#' == text.charAt(0)) return null;
       return new MyNodeType(text, tabs, line);
     });
-    this.assertEqual('a { indent: 0, lineNumber: 1}\nb { indent: 1, lineNumber: 2}\nc { indent: 0, lineNumber: 3}\nd { indent: 1, lineNumber: 5}\n', tree.dump());
+    var result = tree.toString();
+    this.assertEqual('a { indent: 0, lineNumber: 1 }\nb { indent: 1, lineNumber: 2 }\nc { indent: 0, lineNumber: 3 }\nd { indent: 1, lineNumber: 5 }\n', result);
   })
 )();
 

@@ -1,3 +1,10 @@
+== 0.0.2 2009-02-23
+
+* New method `eachChild`
+* `dump` is now `toString`
+* _children is now considered a private method, child(index) and size() are now provided
+* Main method is now `parse` instead of `parseInput`.
+
 == 0.0.1 2009-02-22
 
 * 1 major enhancement:
